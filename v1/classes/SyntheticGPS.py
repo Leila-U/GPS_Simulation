@@ -15,7 +15,7 @@ class SyntheticGPS:
          synthetic_points: (Points) synthetic GPS data created from the route
          """
         self.activity_space, self.route_tree = self.__create_activity_space__()
-        self.route = self.find_optimal_route()
+        self.route = self.find_route()
         self.synthetic_points = None
         print(self.route_tree)
 
@@ -63,21 +63,26 @@ class SyntheticGPS:
 
         return output_dir, home_rt
 
-    def find_optimal_route(self):
+    def find_route(self):
         """
         Requires there to be at least home and work nodes
-        Finds the route with the optimal time to travel through all home, work, and activities
-        :return: route that returns back home at the earliest time
+        Assigns high probability to routes with a more optimal time
+        :return: route that returns back home
         """
         leaf_nodes = []
         self.route_tree.calculate_all_routes(leaf_nodes)
 
-        shortest_route = leaf_nodes[0]
-        for leaf in leaf_nodes[1:]:
-            if leaf.end_time < shortest_route.end_time:
-                shortest_route = leaf
-        shortest_route.route.saveACopy(os.path.join(gvar.ROUTES_DIR, gvar.SHORTEST_ROUTE_NAME))
-        return shortest_route.route
+        leaf_nodes.sort(key=lambda x: x.start_time)
+
+        final_route = leaf_nodes[0]
+        for i in range(len(leaf_nodes)):
+            if i == len(leaf_nodes) - 1 or i == random.randint(0, i + 1):
+                final_route = leaf_nodes[i]
+                print(i)
+                break
+
+        final_route.route.saveACopy(os.path.join(gvar.ROUTES_DIR, gvar.FINAL_ROUTE_NAME))
+        return final_route.route
 
 
     @staticmethod
