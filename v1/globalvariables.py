@@ -19,7 +19,7 @@ SCRATCH_DIR = os.path.join(OUTPUT_DIR, r"scratch")
 HABITAT_NAME = "Habitat_Points"
 HABITAT_DIR = os.path.join(OUTPUT_DIR, "habitat")
 
-SHORTEST_ROUTE_NAME = "Shortest_Route"
+FINAL_ROUTE_NAME = "Final_Route"
 ROUTE_NAME = "Route"
 ROUTES_DIR = os.path.join(OUTPUT_DIR, "routes")
 
