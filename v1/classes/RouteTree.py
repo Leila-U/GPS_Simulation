@@ -1,6 +1,7 @@
 import datetime
 import arcpy
 import os
+import random
 
 import globalvariables as gvar
 
@@ -27,6 +28,8 @@ class RouteTreeNode:
 
         # route values
         self.route = None
+        self.transport_mode = None
+        self.transport_prob = [0, 0, 0, 0]
 
     def __str__(self, depth=0):
         tree_str = "{0}{1} ({2}) | started: {3} ended: {4} \n"\
@@ -68,14 +71,14 @@ class RouteTreeNode:
             # arcpy.conversion.ExportFeatures(self.route, filename)
 
         for child in self.children:
-            current_route = self.calculate_route(child)
+            current_route = self.__calculate_route__(child)
             child.end_time = child.start_time + datetime.timedelta(hours=2)
             if self.route:
                 arcpy.management.Append(self.route, current_route)
             child.route = current_route
             child.calculate_all_routes(leaf_nodes)
 
-    def calculate_route(self, end_node):
+    def __calculate_route__(self, end_node):
         """
         Calculates the route from self to end node using network analysis.
         :param end_node: (RouteTreeNode) the destination of the route
@@ -83,9 +86,9 @@ class RouteTreeNode:
         """
         arcpy.CheckOutExtension("Network")
         # create route analysis layer
-        travel_mode = "Public transit time"
+        end_node.transport_mode, end_node.transport_prob = self.__determine_transport_mode__(end_node)
         route_analysis = arcpy.na.MakeRouteAnalysisLayer(gvar.NETWORK_DIR,
-                                                         travel_mode=travel_mode,
+                                                         travel_mode=end_node.transport_mode,
                                                          sequence="USE_CURRENT_ORDER",
                                                          time_of_day=self.end_time,
                                                          time_zone=gvar.TIME_ZONE,
@@ -121,15 +124,74 @@ class RouteTreeNode:
         arcpy.Delete_management(stops_dir)
         return routes_sublayer
 
+    def __determine_transport_mode__(self, end_node):
+        """
+        Use census data and posterior probability to determine the transportation mode for each route.
+        If distance between points is less than or equal to 1km use transportation mode walking.
+        :param end_node: (RouteTreeNode) the destination node
+        :return: transportation mode, transportation probability: probability of each transportation mode being used
+        which will influence the probability for the consecutive route
+        """
+        transport_mode = "walk"
+        transport_prob = self.transport_prob
+        if self.name == "home" and end_node.name == "work":
+            census_point = os.path.join(gvar.SCRATCH_DIR, gvar.CENSUS_POINT_DIR)
+            arcpy.management.CreateFeatureclass(gvar.SCRATCH_DIR, gvar.CENSUS_POINT_DIR, "POINT")
+            arcpy.da.InsertCursor(census_point, ["SHAPE@XY"]).insertRow([self.xy_coord])
+
+            census_tracts = arcpy.management.SelectLayerByLocation(gvar.CENSUS_DIR, "INTERSECT", census_point)
+            fields = ["CTUID", "Total", "Vehicle", "Transit", "Walk", "Bicycle"]
+
+            with arcpy.da.SearchCursor(census_tracts, fields) as census_tracts:
+                for tract in census_tracts:
+                    if tract[1] == 0:
+                        transport_prob = [25, 25, 25, 25]
+                    else:
+                        transport_sum = sum([float(transit) for transit in tract[2:]])
+                        for i in range(len(gvar.TRANSPORT_MODES)):
+                            transport_prob[i] = float(tract[i+2]) / transport_sum
+
+                if self.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
+                    transport_mode = random.choices(gvar.TRANSPORT_MODES, weights=transport_prob)[0]
+            # arcpy.management.Delete(census_point)
+        else:
+            numerators = []
+            denominator = 0
+            for i in range(len(gvar.TRANSPORT_MODES)):
+                num = gvar.TRANSFER_PROB[gvar.TRANSPORT_MODES.index(self.transport_mode)][i] * self.transport_prob[i]
+                numerators.append(num)
+                denominator += num
+            transport_prob = [num / denominator for num in numerators]
+
+            if self.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
+                transport_mode = random.choices(gvar.TRANSPORT_MODES, weights=transport_prob)[0]
+
+        print("Transport mode {0} with probabilities {1} with sum {2}"
+              .format(transport_mode, transport_prob, sum(transport_prob)))
+        return transport_mode, transport_prob
+
+    @staticmethod
+    def points_distance(start, end):
+        """
+        Calculates the distance between start and end point using method GEODESIC
+        :param start: (Point) starting point
+        :param end: (Point) end point
+        :return: float with distance
+        """
+        p1 = arcpy.PointGeometry(start, gvar.COORD_SYSTEM)
+        p2 = arcpy.PointGeometry(end, gvar.COORD_SYSTEM)
+        a1, d2 = p1.angleAndDistanceTo(p2, 'GEODESIC')
+        return d2
+
 
 if __name__ == "__main__":
     home_rt = RouteTreeNode("home",
-                            arcpy.Point(636817.150044013, 4836472.92922353),
-                            datetime.datetime(23, 6, 20, 0, 0, 0),
-                            datetime.datetime(23, 6, 20, 8, 0, 0))
+                            arcpy.Point(634770.68, 4860695.24),
+                            datetime.datetime(2023, 6, 20, 0, 0, 0),
+                            datetime.datetime(2023, 6, 20, 8, 0, 0))
 
     work_rt = RouteTreeNode("work",
-                            arcpy.Point(637823.54144997, 4849095.14165088))
+                            arcpy.Point(634770.68, 4860695.24))
 
     activity_rt = RouteTreeNode("activity",
                                 arcpy.Point(636105.41, 4836995.77))
@@ -137,6 +199,15 @@ if __name__ == "__main__":
     work_rt.add_child(activity_rt)
     home_rt.add_child(work_rt)
 
-    home_rt.calculate_all_routes()
-
     print(home_rt)
+
+    home_rt.determine_transport_mode(work_rt)
+
+    # def recursion(main):
+    #     if main.children:
+    #         for child in main.children:
+    #             main.determine_transport_mode(child)
+    #             recursion(child)
+
+    # recursion(home_rt)
+
