@@ -1,8 +1,9 @@
 import os
+import arcpy
 
 # DIRECTORIES
 WORKSPACE = r"C:\Users\Denise\Desktop\Git\GPS_Simulation\v1"
-COORD_SYSTEM = "WGS 1984 UTM ZONE 17N"
+COORD_SYSTEM = arcpy.SpatialReference("WGS 1984 UTM ZONE 17N")
 
 # INPUT DIRECTORIES
 HOME_ZONE_DIR = os.path.join(WORKSPACE, r"input\home\Residential_Zone.shp")
@@ -23,10 +24,20 @@ FINAL_ROUTE_NAME = "Final_Route"
 ROUTE_NAME = "Route"
 ROUTES_DIR = os.path.join(OUTPUT_DIR, "routes")
 
+CENSUS_POINT_DIR = "Census_Point"
+CENSUS_DIR = os.path.join(WORKSPACE, "input", "census", "work_transport_mode")
+
 # DATA VARIABLES
 DATA_EXTENT = 1000
 NUM_ACTIVITIES = 3
 TIME_ZONE = "LOCAL_TIME_AT_LOCATIONS"
+
+# TRANSPORTATION MATRIX
+TRANSPORT_MODES = ("vehicle", "transit", "walk", "bicycle")
+TRANSFER_PROB = [[0.75, 0.25, 0.25, 0.25],
+                 [0.25, 0.75, 0.50, 0.25],
+                 [0.25, 0.50, 0.75, 0.50],
+                 [0.25, 0.25, 0.50, 0.75]]
 
 
 # FUNCTIONS
