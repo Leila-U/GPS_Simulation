@@ -18,8 +18,6 @@ class Person:
 
         # Choose route
         self.route = None
-
-        # taken from census data
         self.tract_name = None
         self.probability = None
         self.__find_route__()
@@ -89,7 +87,7 @@ class Person:
                 break
 
         final_route.route.saveACopy(os.path.join(gvar.ROUTES_DIR, gvar.FINAL_ROUTE_NAME))
-        return final_route.route
+        self.route = final_route.route
 
 
     @staticmethod

@@ -27,10 +27,16 @@ ROUTES_DIR = os.path.join(OUTPUT_DIR, "routes")
 CENSUS_POINT_DIR = "Census_Point"
 CENSUS_DIR = os.path.join(WORKSPACE, "input", "census", "work_transport_mode")
 
+SYNTHETIC_GPS_POINTS = "Synthetic_Points"
+FINAL_DIR = os.path.join(OUTPUT_DIR, "final")
+
 # DATA VARIABLES
 DATA_EXTENT = 1000
-NUM_ACTIVITIES = 3
+NUM_ACTIVITIES = 2
 TIME_ZONE = "LOCAL_TIME_AT_LOCATIONS"
+
+TIME_BETWEEN_POINTS = 1
+GPS_ACCURACY = 10
 
 # TRANSPORTATION MATRIX
 TRANSPORT_MODES = ("vehicle", "transit", "walk", "bicycle")
@@ -56,3 +62,17 @@ def create_unique_filename(base_name, directory, extension=""):
 
     filename = base_name + "_" + str(counter) + extension
     return path_updated, filename
+
+
+def points_distance(start, end):
+    """
+    Calculates the distance between start and end point using method GEODESIC
+    :param start: (Point) starting point
+    :param end: (Point) end point
+    :return: float with distance
+    """
+    p1 = arcpy.PointGeometry(start, COORD_SYSTEM)
+    p2 = arcpy.PointGeometry(end, COORD_SYSTEM)
+    a1, d2 = p1.angleAndDistanceTo(p2, 'GEODESIC')
+    return d2
+

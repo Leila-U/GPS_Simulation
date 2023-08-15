@@ -151,9 +151,9 @@ class RouteTreeNode:
                         for i in range(len(gvar.TRANSPORT_MODES)):
                             transport_prob[i] = float(tract[i+2]) / transport_sum
 
-                if self.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
+                if gvar.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
                     transport_mode = random.choices(gvar.TRANSPORT_MODES, weights=transport_prob)[0]
-            # arcpy.management.Delete(census_point)
+            arcpy.management.Delete(census_point)
         else:
             numerators = []
             denominator = 0
@@ -163,51 +163,10 @@ class RouteTreeNode:
                 denominator += num
             transport_prob = [num / denominator for num in numerators]
 
-            if self.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
+            if gvar.points_distance(self.xy_coord, end_node.xy_coord) > 1000:
                 transport_mode = random.choices(gvar.TRANSPORT_MODES, weights=transport_prob)[0]
 
         print("Transport mode {0} with probabilities {1} with sum {2}"
               .format(transport_mode, transport_prob, sum(transport_prob)))
         return transport_mode, transport_prob
-
-    @staticmethod
-    def points_distance(start, end):
-        """
-        Calculates the distance between start and end point using method GEODESIC
-        :param start: (Point) starting point
-        :param end: (Point) end point
-        :return: float with distance
-        """
-        p1 = arcpy.PointGeometry(start, gvar.COORD_SYSTEM)
-        p2 = arcpy.PointGeometry(end, gvar.COORD_SYSTEM)
-        a1, d2 = p1.angleAndDistanceTo(p2, 'GEODESIC')
-        return d2
-
-
-if __name__ == "__main__":
-    home_rt = RouteTreeNode("home",
-                            arcpy.Point(634770.68, 4860695.24),
-                            datetime.datetime(2023, 6, 20, 0, 0, 0),
-                            datetime.datetime(2023, 6, 20, 8, 0, 0))
-
-    work_rt = RouteTreeNode("work",
-                            arcpy.Point(634770.68, 4860695.24))
-
-    activity_rt = RouteTreeNode("activity",
-                                arcpy.Point(636105.41, 4836995.77))
-
-    work_rt.add_child(activity_rt)
-    home_rt.add_child(work_rt)
-
-    print(home_rt)
-
-    home_rt.determine_transport_mode(work_rt)
-
-    # def recursion(main):
-    #     if main.children:
-    #         for child in main.children:
-    #             main.determine_transport_mode(child)
-    #             recursion(child)
-
-    # recursion(home_rt)
 
