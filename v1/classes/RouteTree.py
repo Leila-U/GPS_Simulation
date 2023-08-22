@@ -5,7 +5,6 @@ import random
 
 import globalvariables as gvar
 
-
 class RouteTreeNode:
     """
     :param name: (String) the activity location description (e.g., home, work)
@@ -17,13 +16,14 @@ class RouteTreeNode:
     route (Vector) the route sublayer from NA that contains the connection between the previous node to self
     """
 
-    def __init__(self, name, xy_coord, start_time=None, end_time=None):
+    def __init__(self, name, xy_coord, start_time=None, end_time=None, time_spent=None):
         self.name = name
         self.xy_coord = xy_coord
         self.children = []
 
         # time values
         self.start_time = start_time
+        self.time_spent = time_spent
         self.end_time = end_time
 
         # route values
@@ -32,8 +32,8 @@ class RouteTreeNode:
         self.transport_prob = [0, 0, 0, 0]
 
     def __str__(self, depth=0):
-        tree_str = "{0}{1} ({2}) | started: {3} ended: {4} \n"\
-            .format("\t" * depth, self.name, self.xy_coord, self.start_time, self.end_time)
+        tree_str = "{0}{1} ({2}) | started: {3} ended: {4} time spent: {5}\n"\
+            .format("\t" * depth, self.name, self.xy_coord, self.start_time, self.end_time, self.time_spent)
         for child in self.children:
             tree_str += child.__str__(depth + 1)
         return tree_str
@@ -49,12 +49,12 @@ class RouteTreeNode:
         :param home_node: (RouteTreeNode) node person will return to at the end of path
         """
         if not self.children:
-            self.add_child(RouteTreeNode(home_node.name, home_node.xy_coord))
+            self.add_child(RouteTreeNode(home_node.name, home_node.xy_coord, time_spent=8.0))
         else:
             for child in self.children:
                 for sibling in self.children:
                     if child != sibling:
-                        child.add_child(RouteTreeNode(sibling.name, sibling.xy_coord))
+                        child.add_child(RouteTreeNode(sibling.name, sibling.xy_coord, time_spent=sibling.time_spent))
                 child.add_all_routes(home_node)
 
 
@@ -72,7 +72,7 @@ class RouteTreeNode:
 
         for child in self.children:
             current_route = self.__calculate_route__(child)
-            child.end_time = child.start_time + datetime.timedelta(hours=2)
+            child.end_time = child.start_time + datetime.timedelta(hours=self.time_spent)
             if self.route:
                 arcpy.management.Append(self.route, current_route)
             child.route = current_route
