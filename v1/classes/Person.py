@@ -2,8 +2,18 @@ import arcpy
 import random
 import os
 import datetime
+import googlemaps
+import arcgis.geocoding
+
+from pprint import pprint
+from activity_hours import activity_hours
+from arcgis.gis import GIS
+
+import numpy as np
+
 
 import globalvariables as gvar
+import localvariables as lvar
 from RouteTree import RouteTreeNode
 
 
@@ -37,36 +47,35 @@ class Person:
         arcpy.management.AddField(output_dir, "NAME", "TEXT")
         arcpy.management.DefineProjection(output_dir, spatial_reference)
 
+        home_time_spent = np.random.normal(7, 2)
+        home_start_time = datetime.datetime(2023, 6, 20, 0, 0, 0)
+        home_end_time = home_start_time + datetime.timedelta(hours=home_time_spent)
         self.home = self.create_rand_point("home", gvar.HOME_ZONE_DIR)
         arcpy.da.InsertCursor(output_dir, fields).insertRow(self.home)
         home_rt = RouteTreeNode(self.home[0], self.home[1],
-                                datetime.datetime(2023, 6, 20, 0, 0, 0), datetime.datetime(2023, 6, 20, 8, 0, 0))
+                                start_time=home_start_time,
+                                end_time=home_end_time,
+                                time_spent=home_time_spent)
 
+        work_time_spent = np.random.normal(8, 4)
         self.work = self.create_rand_point("work", gvar.WORK_ZONE_DIR)
         arcpy.da.InsertCursor(output_dir, fields).insertRow(self.work)
-        work_rt = RouteTreeNode(self.work[0], self.work[1])
+        work_rt = RouteTreeNode(self.work[0], self.work[1], time_spent=work_time_spent)
 
-        line_dir = gvar.SCRATCH_DIR + r"\Habitat_Line"
-        buffer_dir = gvar.SCRATCH_DIR + r"\Habitat_Buffer"
-        arcpy.management.PointsToLine(output_dir + ".shp", line_dir)
-        arcpy.analysis.Buffer(line_dir, buffer_dir, str(gvar.DATA_EXTENT) + " Meters")
-
-        activities = self.create_rand_point("activity", buffer_dir)
-
+        activities = self.__get_activity_locations__()
         for activity in activities:
-            arcpy.da.InsertCursor(output_dir, fields).insertRow(activity)
-            activity_rt = RouteTreeNode(activity[0], activity[1])
+            arcpy.da.InsertCursor(output_dir, fields).insertRow(("activity", activity.get("point")))
+            activity_rt = RouteTreeNode(name="activity",
+                                        xy_coord=activity.get("point"),
+                                        time_spent=activity.get("hours_stayed"))
             work_rt.add_child(activity_rt)
 
         work_rt.add_all_routes(home_rt)
         home_rt.add_child(work_rt)
-
-        arcpy.management.Delete(line_dir)
-        arcpy.management.Delete(buffer_dir)
+        print("Route Tree:\n{0}".format(home_rt))
 
         self.activity_space = output_dir
         self.route_tree = home_rt
-
 
     def __find_route__(self):
         """
@@ -88,7 +97,6 @@ class Person:
 
         final_route.route.saveACopy(os.path.join(gvar.ROUTES_DIR, gvar.FINAL_ROUTE_NAME))
         self.route = final_route.route
-
 
     @staticmethod
     def create_rand_point(point_type: str, zone):
@@ -122,4 +130,59 @@ class Person:
 
         arcpy.management.Delete(points_dir)
         return random_points
+
+    def __get_activity_locations__(self):
+        """
+        Give the time stayed at the location using arcgis and google maps queries (for establishment details)
+        and cross-referencing to a dictionary based on statistics data.
+        :return: hours stayed at location
+        """
+        GIS(profile="your_online_profile")
+        # turn work into an address
+        location = {"x": self.work[1].X, "y": self.work[1].Y, "spatialReference": {"wkid": 32617}}
+        location_query = arcgis.geocoding.reverse_geocode(location)
+        pprint(location_query)
+        work_lat_long = (location_query.get("location").get("y"), location_query.get("location").get("x"))
+        print("Work Establishment: {0}".format(work_lat_long))
+
+        # google maps client
+        map_client = googlemaps.Client(lvar.API_KEY)
+
+        # grab all businesses in area
+        activity_list = []
+        business_list = []
+        nearby_search_query = map_client.places_nearby(
+            location=work_lat_long,
+            radius=5000
+        )
+        business_list.extend(nearby_search_query.get('results'))
+
+        if nearby_search_query.get("status") == "OK":
+            for i in range(1, gvar.NUM_ACTIVITIES + 1):
+                # get lat and long
+                activity_address = business_list[i].get("vicinity")
+                activity_geocode = arcgis.geocoding.geocode(activity_address, out_sr=32617)[0]["location"]
+                activity_point = arcpy.Point(activity_geocode.get("x"), activity_geocode.get("y"))
+
+                # get hours
+                activity_type = business_list[i].get("types")[0]
+                hours_stayed = activity_hours.get(activity_type)
+                curved_hours_stayed = np.random.normal(hours_stayed, hours_stayed / 2)
+                print("Activity Point: {0} | Hours Stayed: {1}".format(activity_point, curved_hours_stayed))
+
+                activity_list.append({"point": activity_point, "hours_stayed": curved_hours_stayed})
+        else:
+            raise Exception("No establishments around the area")
+
+        return activity_list
+
+
+if __name__ == "__main__":
+    person = Person()
+    # work_rt = RouteTreeNode("home",
+    #                         arcpy.Point(636817.150044013, 4836472.92922353),
+    #                         datetime.datetime(23, 6, 20, 0, 0, 0),
+    #                         datetime.datetime(23, 6, 20, 8, 0, 0))
+    #
+    # home_rt.__determine_time_at_location__()
 

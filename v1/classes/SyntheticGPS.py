@@ -1,6 +1,7 @@
 import arcpy
 import os
 import datetime
+import math
 
 import globalvariables as gvar
 from Person import Person
@@ -17,6 +18,11 @@ class SyntheticGPS:
         self.points = self.__route_to_points__()
 
     def __route_to_points__(self):
+        """
+        Converts the route vector layer to points at a specified time interval (e.g., GPS point taken every 1min).
+        It will include those times in the table along with TrackerID.
+        :return: the directory to the synthetic data points
+        """
         synthetic_gps = os.path.join(gvar.FINAL_DIR, gvar.SYNTHETIC_GPS_POINTS)
         arcpy.management.CreateFeatureclass(gvar.FINAL_DIR, gvar.SYNTHETIC_GPS_POINTS, "POINT")
         arcpy.management.AddField(synthetic_gps, "TrackerID", "TEXT")
@@ -24,6 +30,8 @@ class SyntheticGPS:
 
         fields = ["SHAPE@", "StartTime", "EndTime", "Total_Length"]
         gps_fields = ["SHAPE@XY", "TrackerID", "Time"]
+
+        prev_end_time = datetime.datetime(2023, 6, 20, 0, 0, 0)
 
         with arcpy.da.UpdateCursor(self.person.route, fields) as cursor:
             for row in cursor:
@@ -47,8 +55,33 @@ class SyntheticGPS:
                 with arcpy.da.UpdateCursor(points, ["SHAPE@"]) as cursor2:
                     date_time = start_time
                     tracker_ID = "0"  # edit later
+                    count = 0
 
                     for row_point in cursor2:
+                        if count == 0:
+                            amount_of_points = math.floor((start_time - prev_end_time).total_seconds() /
+                                                          (gvar.TIME_BETWEEN_POINTS * 60))
+                            for _ in range(amount_of_points):
+                                buffer = os.path.join(gvar.SCRATCH_DIR, "Point_Buffer")
+                                arcpy.analysis.Buffer(row_point, buffer, "{0} Meters".format(gvar.GPS_ACCURACY))
+
+                                buffered_point = os.path.join(gvar.SCRATCH_DIR, "Buffered_Point")
+                                arcpy.management.CreateRandomPoints(gvar.SCRATCH_DIR, "Buffered_Point", buffer, "", 1,
+                                                                    "",
+                                                                    "POINT")
+
+                                with arcpy.da.UpdateCursor(buffered_point, ["SHAPE@XY"]) as cursor3:
+                                    for row_point2 in cursor3:
+                                        x, y = float(row_point2[0][0]), float(row_point2[0][1])
+
+                                point = (arcpy.Point(x, y), tracker_ID, prev_end_time.strftime("%Y/%m/%d, %H:%M:%S"))
+                                arcpy.da.InsertCursor(synthetic_gps, gps_fields).insertRow(point)
+
+                                prev_end_time += datetime.timedelta(minutes=gvar.TIME_BETWEEN_POINTS)
+
+                                arcpy.management.Delete(buffer)
+                                arcpy.management.Delete(buffered_point)
+
                         buffer = os.path.join(gvar.SCRATCH_DIR, "Point_Buffer")
                         arcpy.analysis.Buffer(row_point, buffer, "{0} Meters".format(gvar.GPS_ACCURACY))
 
@@ -66,8 +99,14 @@ class SyntheticGPS:
                         arcpy.management.Delete(buffer)
                         arcpy.management.Delete(buffered_point)
                         date_time += datetime.timedelta(minutes=gvar.TIME_BETWEEN_POINTS)
+                        count += 1
                 arcpy.management.Delete(points)
-        return synthetic_gps
+                prev_end_time = end_time
+
+        sorted_final = os.path.join(gvar.FINAL_DIR, "Sorted_Synthetic_Points")
+        arcpy.management.Sort(synthetic_gps, sorted_final, [["Time", "ASCENDING"]])
+
+        return sorted_final
 
 
 if __name__ == "__main__":
