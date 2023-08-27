@@ -6,10 +6,12 @@ WORKSPACE = r"C:\Users\Denise\Desktop\Git\GPS_Simulation\v1"
 COORD_SYSTEM = arcpy.SpatialReference("WGS 1984 UTM ZONE 17N")
 
 # INPUT DIRECTORIES
-HOME_ZONE_DIR = os.path.join(WORKSPACE, r"input\home\Residential_Zone.shp")
-WORK_ZONE_DIR = os.path.join(WORKSPACE, r"input\work\Work_Zone.shp")
+HOME_ZONE_DIR = os.path.join(WORKSPACE, "input", "home", "Residential_Zone.shp")
+WORK_ZONE_DIR = os.path.join(WORKSPACE, "input", "work", "Work_Zone.shp")
+POI_POINTS_DIR = os.path.join(WORKSPACE, "input", "poi", "Toronto_POI.shp")
+ACTIVITY_HOURS_DIR = os.path.join(WORKSPACE, "input", "poi", "activity_hours.csv")
 
-NETWORK_DATABASE_DIR = os.path.join(WORKSPACE, r"input\network\TransitNetwork.gdb")
+NETWORK_DATABASE_DIR = os.path.join(WORKSPACE, "input", "network", "TransitNetwork.gdb")
 NETWORK_DIR = os.path.join(NETWORK_DATABASE_DIR, "TransitNetwork", "TransitNetwork_ND")
 
 # OUTPUT DIRECTORIES
@@ -32,10 +34,11 @@ FINAL_DIR = os.path.join(OUTPUT_DIR, "final")
 
 # DATA VARIABLES
 DATA_EXTENT = 1000
-NUM_ACTIVITIES = 2
+NUM_ACTIVITIES = 5
+ACTIVITY_BUFFER_DISTANCE = [1, 2, 3, 5, 8, 13, 21]
 TIME_ZONE = "LOCAL_TIME_AT_LOCATIONS"
 
-TIME_BETWEEN_POINTS = 5
+TIME_BETWEEN_POINTS = 2
 GPS_ACCURACY = 10
 
 # TRANSPORTATION MATRIX
@@ -76,3 +79,14 @@ def points_distance(start, end):
     a1, d2 = p1.angleAndDistanceTo(p2, 'GEODESIC')
     return d2
 
+
+def list_to_dictionary(lst):
+    """
+    Turns the list into a dictionary where key is the item and the value counts how many times the item shows up
+    :param lst: items to count
+    :return: dictionary(item, count)
+    """
+    counts = {}
+    for i in lst:
+        counts[i] = counts.get(i, 0) + 1
+    return counts
