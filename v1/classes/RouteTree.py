@@ -5,6 +5,7 @@ import random
 
 import globalvariables as gvar
 
+
 class RouteTreeNode:
     """
     :param name: (String) the activity location description (e.g., home, work)
